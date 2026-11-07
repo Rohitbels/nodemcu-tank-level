@@ -32,7 +32,7 @@ await send('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const R=Date;w
 const nav=async(u,tab=true)=>{await send('Page.navigate',{url:u});await sleep(1500);if(tab){await ev(`document.getElementById('tabHistory').click()`);await sleep(200);}};
 
 await nav('http://tank.test:8765/',false);
-check('home screen and tab icons added', await ev(`['icon','apple-touch-icon'].every(r=>document.querySelector('link[rel="'+r+'"]')?.href.endsWith('/recycling-water.png'))`));
+check('home screen and tab icons added', await ev(`['icon','apple-touch-icon'].every(r=>document.querySelector('link[rel="'+r+'"]')?.href.endsWith('/icon.png'))`));
 check('icon loads at 512px', (await ev(`new Promise(r=>{const i=new Image();i.onload=()=>r(i.naturalWidth);i.onerror=()=>r(0);i.src=document.querySelector('link[rel=icon]').href})`))===512);
 check('opens on Today', await ev(`tabToday.getAttribute('aria-selected')==='true' && !panelToday.hidden && panelHistory.hidden`));
 check('hidden panels take no space', await ev(`getComputedStyle(panelHistory).display==='none'`));

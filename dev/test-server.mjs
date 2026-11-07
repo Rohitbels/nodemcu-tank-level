@@ -9,7 +9,7 @@ for(let i=0;i<7;i++){if(i===2||i===5)continue;const s=new Date(now.getFullYear()
  localStorage.setItem(k,JSON.stringify(list));}})();`;
 http.createServer((q,r)=>{
  if(q.url.startsWith('/api')){r.setHeader('content-type','application/json');return r.end('{ "d": 38.4 }');}
- if(q.url.startsWith('/recycling-water.png')){r.setHeader('content-type','image/png');return r.end(fs.readFileSync(new URL('recycling-water.png',`file://${js}`)));}
+ if(q.url.startsWith('/icon.png')){r.setHeader('content-type','image/png');return r.end(fs.readFileSync(new URL('icon.png',`file://${js}`)));}
  if(q.url.startsWith('/tank.js')){r.setHeader('content-type','text/javascript');return r.end(fs.readFileSync(js));}
  r.setHeader('content-type','text/html');
  r.end(`<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>t</title></head><body><script>if(!location.search.includes('noseed'))${seed}</script><script src=/tank.js></script></body></html>`);

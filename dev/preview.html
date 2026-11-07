@@ -60,11 +60,11 @@
     return Promise.resolve({ json: () => Promise.resolve({ d: d }) });
   };
 
-  // tank.js replaces the body when it starts, so the panel goes in after that
+  // tank.js replaces the body once its settings have loaded, so the panel lives outside the body
   window.addEventListener('load', function () {
     const panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9;display:flex;flex-wrap:wrap;gap:6px;align-items:center;' +
-      'max-width:calc(100vw - 24px);padding:8px;border-radius:10px;background:#0f1c24;color:#e3ecf1;font:12px system-ui,sans-serif';
+    panel.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9;display:flex;flex-wrap:wrap;gap:6px;align-items:center;' +
+      'max-width:calc(100vw - 104px);padding:8px;border-radius:10px;background:#0f1c24;color:#e3ecf1;font:12px system-ui,sans-serif';
     panel.append('Preview, fake data:');
     [['OK', 'normal'], ['Red', 'red'], ['No echo', 'noecho'], ['Offline', 'offline']].forEach(([label, value]) => {
       const button = document.createElement('button');
@@ -85,9 +85,17 @@
       Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k));
       location.href = location.pathname + '?empty';
     };
-    panel.append(reset, clear);
-    document.body.style.paddingBottom = '96px'; // keep the panel off the last controls
-    document.body.append(panel);
+    const forget = document.createElement('button');
+    forget.textContent = 'Forget settings';
+    forget.onclick = () => {
+      localStorage.removeItem('tank.settings');
+      location.reload();
+    };
+    panel.append(reset, clear, forget);
+    const room = document.createElement('style');
+    room.textContent = 'body { padding-bottom: 150px !important; }'; // keep the panel off the last controls
+    document.head.append(room);
+    document.documentElement.append(panel);
   });
 })();
 </script>

@@ -4,12 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-No build, test or lint tooling. Compile-check the firmware with the Arduino IDE's bundled CLI (needs `nodeMcuAPIServer/secrets.h`, copied from `secrets.example.h`):
+No build or lint tooling. Compile-check the firmware with the Arduino IDE's bundled CLI (needs `nodeMcuAPIServer/secrets.h`, copied from `secrets.example.h`):
 
 ```bash
 "/Applications/Arduino IDE.app/Contents/Resources/app/lib/backend/resources/arduino-cli" compile --fqbn esp8266:esp8266:nodemcuv2 nodeMcuAPIServer
 node --check docs/tank.js
+node dev/test.mjs   # browser checks for the display; needs Chrome on macOS
 ```
+
+Open `dev/preview.html` in a browser to try the display with fake data and no NodeMCU.
 
 ## Architecture
 
@@ -30,10 +33,11 @@ Plain JavaScript, no build step, served by GitHub Pages from `main` `/docs`
 - Polls `/api` every 3 s, stores `[time, d]` per day in localStorage (7 days)
 - Tank defaults to 70 cm (probe to floor), settable in Settings; green while d > 25 cm, red at d <= 25 cm (sensor blind zone)
 - Fill is shown as a percentage everywhere: `level / tankCm * 100`, so 100% is the whole tank, and the red line's % comes from the same formula (64% on a 70 cm tank). The formulas live together at the top of the file; don't repeat them or hardcode tank numbers
-- Settings page (gear icon): theme, tank depth and optional diameter, stored per device in IndexedDB; the page falls back to defaults if it fails. Levels are derived from stored d, so a new depth applies to past days too
+- Settings tab: theme, tank depth and optional diameter, stored per device in localStorage (`tank.settings`). With no saved tank size, on a first visit or if the browser lost it, the page uses the default and shows a warning until one is saved. Levels are derived from stored d, so a new depth applies to past days too
 - Water available tile: litres for a round straight-sided tank when a diameter is set, otherwise cm of water
 - Mobile first: design and check at phone widths before desktop
-- Two tabs under the always-visible status banner: Today (gauge, current numbers) and History
+- Floating indicator, bottom right on every view: green OK, red OFF (stop the motor), grey -- when there is no reading
+- Sticky top bar: title with a live dot (green live, red offline or no echo), then tabs for Today, History (chart icon) and Settings (gear icon)
 - History tab: per-day level chart (one median point per minute, shaded gaps), daily high/low/readings, and Copy Data (CSV of every stored day, one row per minute, with fill % and raw distance)
 - Copy Data can't rely on `navigator.clipboard`: the page is plain http, so it uses `execCommand('copy')`, then a manual-copy box
 - Pages serves it with `max-age=600`, so phones get a change within 10 minutes on their next page load. Bumping `?v=` in the firmware's page skips that wait but needs a re-flash

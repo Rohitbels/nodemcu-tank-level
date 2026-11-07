@@ -7,7 +7,7 @@
  * green while the water is further below the sensor than CONFIG.redCm, red once it is that close.
  * Fill % is the water level as a share of the whole tank depth, and the red line's % comes from the same formula.
  * The History tab charts those stored readings per day and copies them as CSV.
- * Settings (theme, tank depth, tank diameter) are kept in IndexedDB. Levels are worked out from d when shown, so a new depth also applies to past days.
+ * Settings (theme, tank depth, tank diameter) are kept in localStorage. Levels are worked out from d when shown, so a new depth also applies to past days.
  *
  * GitHub Pages serves this file with max-age=600, so phones pick up a change within 10 minutes of it
  * going live, on their next page load. Bumping ?v= in the NodeMCU page skips that wait but needs a re-flash.
@@ -111,56 +111,52 @@
     }
   }
 
-  // ---------- Settings: one IndexedDB record, on this device only ----------
+  // ---------- Settings: one localStorage record, on this device only ----------
 
-  const settings = { theme: 'system', tankCm: CONFIG.tankCm, diameterCm: null }; // null: diameter not given
+  const SETTINGS_KEY = 'tank.settings';
+  const settings = { theme: 'system', tankCm: null, diameterCm: null }; // null: not set by the user
   const validTank = cm => Number.isFinite(cm) && cm >= CONFIG.tankMinCm && cm <= CONFIG.tankMaxCm;
   const validDiameter = cm => Number.isFinite(cm) && cm >= CONFIG.diameterMinCm && cm <= CONFIG.diameterMaxCm;
 
-  function openDb() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('tank', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('settings');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+  function readSaved() {
+    try {
+      return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
   }
 
-  // Never holds up the display: if IndexedDB fails or hangs, the page starts with the defaults
   function loadSettings() {
-    const read = openDb().then(db => new Promise((resolve, reject) => {
-      const req = db.transaction('settings').objectStore('settings').get('app');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    }));
-    const timeout = new Promise(resolve => setTimeout(resolve, 1000));
-    return Promise.race([read, timeout]).catch(() => undefined).then(saved => {
-      if (!saved) return;
-      if (['system', 'light', 'dark'].includes(saved.theme)) settings.theme = saved.theme;
-      if (validTank(saved.tankCm)) settings.tankCm = CONFIG.tankCm = saved.tankCm;
-      if (validDiameter(saved.diameterCm)) settings.diameterCm = saved.diameterCm;
-    });
+    const saved = readSaved();
+    if (['system', 'light', 'dark'].includes(saved.theme)) settings.theme = saved.theme;
+    if (validTank(saved.tankCm)) settings.tankCm = CONFIG.tankCm = saved.tankCm;
+    if (validDiameter(saved.diameterCm)) settings.diameterCm = saved.diameterCm;
   }
 
+  // Reads the record back, so a browser that ignores the write counts as a failure
   function saveSettings() {
-    return openDb().then(db => new Promise((resolve, reject) => {
-      const tx = db.transaction('settings', 'readwrite');
-      tx.objectStore('settings').put({ theme: settings.theme, tankCm: settings.tankCm, diameterCm: settings.diameterCm }, 'app');
-      tx.oncomplete = resolve;
-      tx.onerror = tx.onabort = () => reject(tx.error);
-    }));
+    const json = JSON.stringify(settings);
+    try {
+      localStorage.setItem(SETTINGS_KEY, json);
+      return localStorage.getItem(SETTINGS_KEY) === json;
+    } catch (e) {
+      return false;
+    }
   }
+
+  // False on a first visit and when the browser has lost the settings: the two look identical
+  const tankSaved = () => validTank(readSaved().tankCm);
 
   // ---------- UI ----------
 
   const DARK = `
     --bg: #0a1217; --panel: #111c23; --fg: #e3ecf1; --muted: #8ea1ab; --line: #22323b; --tank: #15232b;
     --water: #3a95db; --water-top: #69b4ec; --red: #ff5b4d; --red-tint: rgba(255,91,77,.14); --green: #3cc07a; --off: #6c7c85;
-    color-scheme: dark;`;
+    --on-state: #0a1217; color-scheme: dark;`;
 
   const CSS = `
 :root {
-  color-scheme: light;
+  color-scheme: light; --on-state: #ffffff;
   --bg: #eef3f6; --panel: #ffffff; --fg: #0f1c24; --muted: #5b6b75; --line: #d3dde3; --tank: #e3ebf0;
   --water: #2f86c9; --water-top: #5aa6df; --red: #d33a2e; --red-tint: rgba(211,58,46,.10); --green: #23905a; --off: #8a979f;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -170,31 +166,31 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; display: block; min-height: 0; text-align: left; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font);
-  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 main { max-width: 860px; margin: 0 auto; display: grid; gap: 14px; }
 .num { font-variant-numeric: tabular-nums; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.top-right { display: flex; align-items: center; gap: 4px; margin-right: -11px; }
-.gear { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
-.gear[aria-expanded="true"] { color: var(--fg); }
-h1 { margin: 0; font-size: 22px; font-weight: 700; }
-.chip { font: 500 12px var(--mono); color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
-.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--chip, var(--off)); }
-.status { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
-.light { flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--state, var(--off)); box-shadow: 0 0 0 6px color-mix(in srgb, var(--state, var(--off)) 18%, transparent); }
-.status h2 { margin: 0; font-size: 20px; line-height: 1.2; }
-.status p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: max(8px, env(safe-area-inset-top, 0px)) 0 8px; background: var(--bg); }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--off); }
+.nav { flex: none; display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--tank); }
+.nav button { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: 600 14px var(--font); cursor: pointer; }
+.nav #tabToday { padding: 0 10px; }
+.nav button[aria-selected="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+h1 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; white-space: nowrap; }
+.fab { position: fixed; z-index: 5; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--state, var(--off)); color: var(--on-state);
+  font: 700 19px var(--font); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 body[data-state="green"] { --state: var(--green); }
 body[data-state="red"] { --state: var(--red); }
 body[data-state="off"] { --state: var(--off); }
-body[data-state="red"] .status { background: var(--red); border-color: var(--red); color: #fff; }
-body[data-state="red"] .status p { color: rgba(255,255,255,.88); }
-body[data-state="red"] .light { background: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.3); animation: tank-pulse 1s ease-in-out infinite; }
-@keyframes tank-pulse { 50% { box-shadow: 0 0 0 14px rgba(255,255,255,0); } }
+body[data-state="red"] .fab { animation: tank-pulse 1s ease-out infinite; }
+@keyframes tank-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 60%, transparent); } to { box-shadow: 0 0 0 16px transparent; } }
 .cols { display: grid; gap: 14px; }
 @media (min-width: 680px) {
   .cols { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
+  h1 { font-size: 22px; }
   .gauge { order: -1; }
   .gauge svg { max-height: none; }
   .hist dl div { padding: 10px 12px; }
@@ -227,11 +223,11 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
 .hist { display: grid; gap: 12px; }
 .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--tank); }
 .tabs button { font: 600 14px var(--font); min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
-.tabs button[aria-selected="true"], .tabs button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+.tabs button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
 .tabs.three { grid-template-columns: repeat(3, 1fr); }
 .settings { display: grid; gap: 20px; }
-.set-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.settings h2 { margin: 0; font-size: 17px; }
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; background: var(--red-tint); border: 1px solid var(--red); }
+.notice p { flex: 1 1 180px; margin: 0; font-size: 14px; }
 .field { display: grid; gap: 8px; }
 .field-name { font-weight: 600; }
 .field p { margin: 0; color: var(--muted); font-size: 13px; }
@@ -267,7 +263,7 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
 .hist dd { font-size: 16px; }
 .hist .foot { margin: 0; }
 #copyBox { width: 100%; height: 120px; font: 16px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
-@media (prefers-reduced-motion: reduce) { .wave, body[data-state="red"] .light { animation: none; } #water { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wave, body[data-state="red"] .fab { animation: none; } #water { transition: none; } }
 `;
 
   const TOP = 40, BOTTOM = 390;
@@ -315,20 +311,17 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
     document.body.innerHTML = `
 <main>
   <header>
-    <h1>Water tank</h1>
-    <div class="top-right">
-      <span class="chip" id="conn">connecting…</span>
-      <button class="gear" id="gear" type="button" aria-label="Settings" aria-expanded="false" aria-controls="panelSettings"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-    </div>
+    <h1>Water tank <span class="dot" id="conn" role="img" aria-label="Connecting" title="Connecting"></span></h1>
+    <nav class="nav" id="tabs" role="tablist" aria-label="View">
+      <button type="button" role="tab" id="tabToday" aria-controls="panelToday" aria-selected="true">Today</button>
+      <button type="button" role="tab" id="tabHistory" aria-controls="panelHistory" aria-selected="false" aria-label="History" title="History" tabindex="-1"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg></button>
+      <button type="button" role="tab" id="tabSettings" aria-controls="panelSettings" aria-selected="false" aria-label="Settings" title="Settings" tabindex="-1"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </nav>
   </header>
-  <section class="status" aria-live="polite">
-    <div class="light" aria-hidden="true"></div>
-    <div><h2 id="statusTitle">Waiting for sensor</h2><p id="statusText">First reading in a few seconds.</p></div>
+  <section class="notice" id="notice" hidden>
+    <p>Tank size isn't saved on this phone. Levels are using a ${CONFIG.tankCm} cm tank and may be wrong.</p>
+    <button class="copy" id="noticeSet" type="button">Set tank size</button>
   </section>
-  <div class="tabs" id="tabs" role="tablist" aria-label="View">
-    <button type="button" role="tab" id="tabToday" aria-controls="panelToday" aria-selected="true">Today</button>
-    <button type="button" role="tab" id="tabHistory" aria-controls="panelHistory" aria-selected="false" tabindex="-1">History</button>
-  </div>
   <div class="cols" id="panelToday" role="tabpanel" aria-labelledby="tabToday">
     <section class="card">
       <div class="big"><strong class="num" id="levelBig">--</strong><span>full</span></div>
@@ -353,8 +346,7 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
     <div class="hist-actions"><button class="copy" id="copy" type="button">Copy Data</button><span id="copyMsg" aria-live="polite"></span></div>
     <textarea id="copyBox" readonly hidden aria-label="History data as CSV"></textarea>
   </section>
-  <section class="card settings" id="panelSettings" hidden>
-    <div class="set-head"><h2>Settings</h2><button class="copy" id="settingsDone" type="button">Done</button></div>
+  <section class="card settings" id="panelSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
     <div class="field">
       <span class="field-name" id="themeName">Appearance</span>
       <div class="tabs three" id="themes" role="group" aria-labelledby="themeName">
@@ -385,30 +377,39 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
     </form>
     <p class="foot">Settings are saved on this phone only.</p>
   </section>
+  <div class="fab" role="status"><span id="fabLabel" aria-hidden="true">--</span><span class="sr" id="fabInfo">Waiting for sensor</span></div>
 </main>`;
   }
 
   const $ = id => document.getElementById(id);
   let lastOk = 0, failures = 0, lastD = null;
 
-  function setStatus(state, title, text) {
+  function setConn(text, color) {
+    const dot = $('conn');
+    dot.title = text;
+    dot.setAttribute('aria-label', text);
+    dot.style.background = `var(--${color})`;
+  }
+
+  // label is what the floating indicator shows; info is read out by screen readers
+  function setStatus(state, label, info) {
     document.body.dataset.state = state;
-    $('statusTitle').textContent = title;
-    $('statusText').textContent = text;
+    $('fabLabel').textContent = label;
+    $('fabInfo').textContent = info;
   }
 
   function render(d) {
     const offline = failures >= 2;
-    $('conn').textContent = offline ? 'offline' : 'live';
-    document.body.style.setProperty('--chip', offline ? 'var(--red)' : 'var(--green)');
+    setConn(offline ? 'Offline' : 'Live', offline ? 'red' : 'green');
 
     if (offline) {
-      setStatus('off', 'NodeMCU not responding', 'Check that the board is powered and the phone is on the same Wi-Fi.');
+      setStatus('off', '--', 'NodeMCU not responding. Check that the board is powered and the phone is on the same Wi-Fi.');
       return;
     }
     if (d === undefined) return;
     if (d === null) {
-      setStatus('off', 'No echo from the sensor', 'The sensor heard nothing back. Check the tank and the probe cable.');
+      setConn('No echo from the sensor', 'red');
+      setStatus('off', '--', 'No echo from the sensor. Check the tank and the probe cable.');
       return;
     }
 
@@ -416,9 +417,9 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
     drawLevel(d);
 
     if (d <= CONFIG.redCm) {
-      setStatus('red', 'Stop the motor', 'Water is within ' + CONFIG.redCm + ' cm of the sensor.');
+      setStatus('red', 'OFF', 'Stop the motor. Water is within ' + CONFIG.redCm + ' cm of the sensor.');
     } else {
-      setStatus('green', 'OK', 'Water is more than ' + CONFIG.redCm + ' cm below the sensor.');
+      setStatus('green', 'OK', 'OK. Water is more than ' + CONFIG.redCm + ' cm below the sensor.');
     }
   }
 
@@ -597,18 +598,21 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   // The chart measures its width when drawn, so it can only be drawn while its tab is showing
   const historyOpen = () => !$('panelHistory').hidden;
 
-  let currentTab = 'Today';
+  const TABS = ['Today', 'History', 'Settings'];
+  let currentTab = TABS[0];
 
   function showTab(name) {
     currentTab = name;
-    const history = name === 'History';
-    $('panelToday').hidden = history;
-    $('panelHistory').hidden = !history;
-    [['tabToday', !history], ['tabHistory', history]].forEach(([id, on]) => {
-      $(id).setAttribute('aria-selected', on);
-      $(id).tabIndex = on ? 0 : -1;
+    TABS.forEach(tab => {
+      const on = tab === name;
+      $('panel' + tab).hidden = !on;
+      $('tab' + tab).setAttribute('aria-selected', on);
+      $('tab' + tab).tabIndex = on ? 0 : -1;
     });
-    if (history) showHistory();
+    window.scrollTo(0, 0);
+    updateNotice();
+    if (name === 'History') showHistory();
+    if (name === 'Settings') fillSettings();
   }
 
   // Polling calls this. Past days don't change, so only today's view is redrawn, once a minute.
@@ -723,11 +727,11 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   }
 
   function bindHistory() {
-    $('tabToday').addEventListener('click', () => showTab('Today'));
-    $('tabHistory').addEventListener('click', () => showTab('History'));
+    TABS.forEach(tab => $('tab' + tab).addEventListener('click', () => showTab(tab)));
     $('tabs').addEventListener('keydown', e => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      const next = historyOpen() ? 'Today' : 'History';
+      const step = e.key === 'ArrowRight' ? 1 : TABS.length - 1;
+      const next = TABS[(TABS.indexOf(currentTab) + step) % TABS.length];
       showTab(next);
       $('tab' + next).focus();
     });
@@ -764,24 +768,18 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   }
 
   function saved(text) {
-    saveSettings().then(
-      () => { $('tankMsg').textContent = text; },
-      () => { $('tankMsg').textContent = 'Could not save on this phone. This will reset when the page reloads.'; }
-    );
+    $('tankMsg').textContent = saveSettings() ? text : 'Could not save on this phone. This will reset when the page reloads.';
+    updateNotice();
   }
 
-  function showSettings(open) {
-    $('panelSettings').hidden = !open;
-    $('tabs').hidden = open;
-    $('gear').setAttribute('aria-expanded', open);
-    if (open) {
-      $('panelToday').hidden = $('panelHistory').hidden = true;
-      $('tankInput').value = CONFIG.tankCm;
-      $('tankDiameter').value = settings.diameterCm == null ? '' : settings.diameterCm;
-      $('tankMsg').textContent = '';
-    } else {
-      showTab(currentTab);
-    }
+  function updateNotice() {
+    $('notice').hidden = tankSaved() || currentTab === 'Settings';
+  }
+
+  function fillSettings() {
+    $('tankInput').value = CONFIG.tankCm;
+    $('tankDiameter').value = settings.diameterCm == null ? '' : settings.diameterCm;
+    $('tankMsg').textContent = '';
   }
 
   function saveTank(e) {
@@ -807,11 +805,6 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   }
 
   function bindSettings() {
-    $('gear').addEventListener('click', () => showSettings($('panelSettings').hidden));
-    $('settingsDone').addEventListener('click', () => {
-      showSettings(false);
-      $('gear').focus();
-    });
     $('themes').addEventListener('click', e => {
       const button = e.target.closest('button');
       if (!button) return;
@@ -820,6 +813,7 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
       saved('Saved.');
     });
     $('tankForm').addEventListener('submit', saveTank);
+    $('noticeSet').addEventListener('click', () => showTab('Settings'));
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }
 
@@ -853,13 +847,13 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
 
   function start() {
     pruneOldDays();
-    loadSettings().then(() => {
-      buildPage();
-      applyTheme();
-      bindHistory();
-      bindSettings();
-      poll();
-    });
+    loadSettings();
+    buildPage();
+    applyTheme();
+    bindHistory();
+    bindSettings();
+    updateNotice();
+    poll();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

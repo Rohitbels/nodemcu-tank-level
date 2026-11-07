@@ -9,6 +9,12 @@ ESP8266HTTPUpdateServer httpUpdater; // Firmware upload page at /update
 
 #define MDNS_NAME "tank" // Reachable at http://tank.local on the same Wi-Fi
 
+#define LED_ON LOW       // The NodeMCU's built-in LED is active low
+#define LED_OFF HIGH
+#define LED_BLINK_MS 500 // Blinks at this rate while there is no Wi-Fi
+
+#define WIFI_RESTART_MS 300000UL // Restarts after 5 minutes offline, in case Wi-Fi has got stuck
+
 const int trigPin = 12; // D6 on NodeMCU
 const int echoPin = 14; // D5 on NodeMCU
 
@@ -21,10 +27,14 @@ const int echoPin = 14; // D5 on NodeMCU
 long lastEcho = 0;
 unsigned long lastMeasureMs = 0;
 bool hasMeasured = false;
+unsigned long lastBlinkMs = 0;
+unsigned long lastOnlineMs = 0;
 
 // Declared up front because Arduino's auto-generated declarations skip past the raw string below
 void handleRootPath();
 void handleApi();
+void ledTick();
+void restartIfOffline();
 
 // Set your Static IP address
 IPAddress local_IP(192, 168, 1, 58);
@@ -73,7 +83,8 @@ void setup()
 
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW); // LOW = ON for NodeMCU built-in LED
+    digitalWrite(LED_BUILTIN, LED_ON);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Connect to the WiFi network
 
     pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
@@ -87,8 +98,10 @@ void setup()
     while (WiFi.status() != WL_CONNECTED)
     { // Wait for connection
 
-        delay(500);
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+        delay(LED_BLINK_MS);
         Serial.println("Waiting to connect…");
+        restartIfOffline();
     }
 
     Serial.print("IP address: ");
@@ -120,6 +133,8 @@ void loop()
     // Nothing is measured here: the sensor is only pinged when /api is requested
     server.handleClient(); // Handling of incoming requests
     MDNS.update();         // Answers tank.local lookups
+    ledTick();             // Off on Wi-Fi, blinking without it
+    restartIfOffline();
 }
 
 // Single ping. Returns echo time in microseconds, or 0 if no echo arrived.
@@ -176,6 +191,32 @@ long medianEchoTime()
 void handleRootPath()
 { // Handler for the rooth path
     server.send_P(200, "text/html", SHELL_HTML);
+}
+
+void ledTick()
+{
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        digitalWrite(LED_BUILTIN, LED_OFF);
+    }
+    else if (millis() - lastBlinkMs >= LED_BLINK_MS)
+    {
+        lastBlinkMs = millis();
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    }
+}
+
+void restartIfOffline()
+{
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        lastOnlineMs = millis();
+    }
+    else if (millis() - lastOnlineMs >= WIFI_RESTART_MS)
+    {
+        Serial.println("Offline too long, restarting");
+        ESP.restart();
+    }
 }
 
 void handleApi()

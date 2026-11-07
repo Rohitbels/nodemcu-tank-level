@@ -16,6 +16,8 @@ To update the board over Wi-Fi, add `--output-dir build` to the compile command,
 
 Open `dev/preview.html` in a browser to try the display with fake data and no NodeMCU.
 
+`dev/diag.md` holds a sensor test page removed from the firmware, plus what a loose probe plug looks like.
+
 ## Architecture
 
 This project is a two-component IoT system for monitoring water tank depth:
@@ -28,6 +30,8 @@ Arduino sketch for NodeMCU 1.0 / HW-625 (ESP8266) that:
 - `GET /api` returns `{ "d": <distance_cm> }`, or HTTP 503 `{ "d": null, "error": "no echo" }`
 - `GET /` serves a small HTML page that loads `docs/tank.js` from GitHub Pages; if that fails it shows the raw distance every 3 s
 - `GET /update` is a password-protected page for uploading new firmware over Wi-Fi
+- The built-in LED is off on Wi-Fi and blinks without it
+- Wi-Fi reconnects by itself; after 5 minutes offline, including at startup, the board restarts
 - Wi-Fi credentials and the update page login live in git-ignored `secrets.h`
 
 ### Display (`docs/tank.js`)

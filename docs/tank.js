@@ -309,10 +309,10 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
 </svg>`;
   }
 
-  // docs/icon.png sits next to this file, so it comes from GitHub Pages rather than the NodeMCU
+  // docs/recycling-water.png sits next to this file, so it comes from GitHub Pages rather than the NodeMCU
   function addIcons() {
     if (!SCRIPT) return;
-    const href = new URL('icon.png', SCRIPT.src).href;
+    const href = new URL('recycling-water.png', SCRIPT.src).href;
     ['icon', 'apple-touch-icon'].forEach(rel => {
       const link = document.createElement('link');
       link.rel = rel;

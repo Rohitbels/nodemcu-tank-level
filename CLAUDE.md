@@ -33,7 +33,7 @@ Arduino sketch for NodeMCU 1.0 / HW-625 (ESP8266) that:
 ### Display (`docs/tank.js`)
 Plain JavaScript, no build step, served by GitHub Pages from `main` `/docs`
 (`https://rohitbels.github.io/nodemcu-tank-level/tank.js`):
-- Adds `docs/icon.png` to the page as the browser tab and home screen icon
+- Adds `docs/recycling-water.png` to the page as the browser tab and home screen icon
 - Polls `/api` every 3 s, stores `[time, d]` per day in localStorage (7 days)
 - Tank defaults to 70 cm (probe to floor), settable in Settings; green while d > 25 cm, red at d <= 25 cm (sensor blind zone)
 - Fill is shown as a percentage everywhere: `level / tankCm * 100`, so 100% is the whole tank, and the red line's % comes from the same formula (64% on a 70 cm tank). The formulas live together at the top of the file; don't repeat them or hardcode tank numbers

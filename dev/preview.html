@@ -1,0 +1,95 @@
+<!doctype html>
+<!--
+  Local preview of docs/tank.js. Open this file in a browser: no NodeMCU, server or internet needed.
+  It fakes GET /api and fills localStorage with a week of sample readings, so the numbers are not real.
+  Lives outside docs/ so GitHub Pages doesn't publish it.
+-->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Water tank preview</title>
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+  const PREFIX = 'tank.day.';
+  const pad = n => String(n).padStart(2, '0');
+  const keyOf = d => PREFIX + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+
+  // Water falls through the day, with a fill in the morning and one in the evening
+  function levelAt(hour) {
+    if (hour < 6.5) return 34 - hour * 1.2;
+    if (hour < 7.25) return 26 + (hour - 6.5) / 0.75 * 24;
+    if (hour < 18) return 50 - (hour - 7.25) * 2.2;
+    if (hour < 18.75) return 26 + (hour - 18) / 0.75 * 22;
+    return 48 - (hour - 18.75) * 2.4;
+  }
+
+  function seed() {
+    const now = new Date();
+    const open = [[6.2, 7.6], [9, 9.3], [12.5, 13], [17.8, 19.2], [21, 22.5]]; // hours the page was "open"
+    for (let i = 0; i < 7; i++) {
+      if (i === 3) continue; // one day with nothing recorded
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const list = [];
+      open.forEach(([from, to]) => {
+        for (let h = from; h < to; h += 3 / 3600) {
+          const t = Math.round(day.getTime() + h * 3600000);
+          if (t > Date.now()) break;
+          const noise = Math.sin(h * 900) * 0.3;
+          list.push([t, Math.random() < 0.002 ? null : Math.round((70 - levelAt(h) - noise) * 10) / 10]);
+        }
+      });
+      localStorage.setItem(keyOf(day), JSON.stringify(list));
+    }
+  }
+
+  function hasData() {
+    return Object.keys(localStorage).some(k => k.startsWith(PREFIX));
+  }
+
+  if (!hasData() && !location.search.includes('empty')) seed();
+
+  // Stands in for the NodeMCU
+  let mode = 'normal';
+  const realFetch = window.fetch;
+  window.fetch = function (url, options) {
+    if (url !== '/api') return realFetch(url, options);
+    if (mode === 'offline') return Promise.reject(new Error('offline'));
+    const d = { normal: 38.4 + Math.sin(Date.now() / 20000), red: 22.5, noecho: null }[mode];
+    return Promise.resolve({ json: () => Promise.resolve({ d: d }) });
+  };
+
+  // tank.js replaces the body when it starts, so the panel goes in after that
+  window.addEventListener('load', function () {
+    const panel = document.createElement('div');
+    panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9;display:flex;flex-wrap:wrap;gap:6px;align-items:center;' +
+      'max-width:calc(100vw - 24px);padding:8px;border-radius:10px;background:#0f1c24;color:#e3ecf1;font:12px system-ui,sans-serif';
+    panel.append('Preview, fake data:');
+    [['OK', 'normal'], ['Red', 'red'], ['No echo', 'noecho'], ['Offline', 'offline']].forEach(([label, value]) => {
+      const button = document.createElement('button');
+      button.textContent = label;
+      button.onclick = () => { mode = value; };
+      panel.append(button);
+    });
+    const reset = document.createElement('button');
+    reset.textContent = 'Reset data';
+    reset.onclick = () => {
+      Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k));
+      seed();
+      location.reload();
+    };
+    const clear = document.createElement('button');
+    clear.textContent = 'Clear data';
+    clear.onclick = () => {
+      Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k));
+      location.href = location.pathname + '?empty';
+    };
+    panel.append(reset, clear);
+    document.body.style.paddingBottom = '96px'; // keep the panel off the last controls
+    document.body.append(panel);
+  });
+})();
+</script>
+<script src="../docs/tank.js"></script>
+</body></html>

@@ -3,7 +3,7 @@
 Shows how full a water tank is on your phone's browser, using a NodeMCU and a waterproof ultrasonic sensor mounted at the top of the tank.
 
 - The **NodeMCU** only measures. It pings the sensor when asked and returns the distance to the water.
-- The **page** (`docs/tank.js`, hosted on GitHub Pages) asks every 3 seconds, draws the tank, and turns red when the water is within 25 cm of the sensor.
+- The **page** (`docs/tank.js`, hosted on GitHub Pages) asks every 3 seconds, draws the tank with its fill percentage, and turns red when the water is within 25 cm of the sensor. Fill is a percentage of the whole tank depth, and the red line's percentage follows from the tank size.
 
 ## Hardware
 
@@ -42,8 +42,8 @@ The sensor is only pinged when `/api` is called. Requests within 1 s of each oth
 
 Open `http://192.168.1.58` on a phone on the same Wi-Fi. Type `http://` in full. Use **Add to Home Screen** for an app-like icon.
 
-Readings are stored in the browser's localStorage, one entry per day, kept for 7 days.
+Readings are stored in the browser's localStorage, one entry per day, kept for 7 days. Each phone keeps its own history, only for the times the page was open. The History tab charts each day and has a Copy Data button that copies every stored day as CSV, one row per minute.
 
 ## Changing the display
 
-Edit `docs/tank.js`. Tank height (70 cm) and the red line (25 cm) are in `CONFIG` at the top. GitHub Pages publishes it from the `main` branch, `/docs` folder. After a change, bump `?v=` in the page inside `nodeMcuAPIServer.ino` and re-upload, so phones don't keep an old cached copy.
+Edit `docs/tank.js`. The default tank depth (70 cm) and the red line (25 cm) are in `CONFIG` at the top. The tank depth, optional tank diameter (shows water in litres, assuming a round tank) and light or dark theme can also be set per device from the gear icon; those settings are stored in IndexedDB. GitHub Pages publishes it from the `main` branch, `/docs` folder. Phones pick up a change within 10 minutes of it going live, on their next page load (GitHub Pages sends `max-age=600`). To skip that wait, bump `?v=` in the page inside `nodeMcuAPIServer.ino` and re-upload.

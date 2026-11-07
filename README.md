@@ -34,6 +34,7 @@ Serial Monitor runs at 115200 baud.
 | URL | Returns |
 |---|---|
 | `GET /` | The display page. Loads `tank.js` from GitHub Pages; without internet it shows the raw distance in large digits. |
+| `GET /update` | Password-protected page for uploading new firmware over Wi-Fi. The login is in `secrets.h`. |
 | `GET /api` | Measures now: `{ "d": 47.6 }` (cm from sensor to water), or HTTP 503 `{ "d": null, "error": "no echo" }` |
 
 The sensor is only pinged when `/api` is called. Requests within 1 s of each other share a measurement.

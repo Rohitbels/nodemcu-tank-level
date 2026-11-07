@@ -12,6 +12,8 @@ node --check docs/tank.js
 node dev/test.mjs   # browser checks for the display; needs Chrome on macOS
 ```
 
+To update the board over Wi-Fi, add `--output-dir build` to the compile command, then upload `build/nodeMcuAPIServer.ino.bin` at `http://192.168.1.58/update`.
+
 Open `dev/preview.html` in a browser to try the display with fake data and no NodeMCU.
 
 ## Architecture
@@ -25,7 +27,8 @@ Arduino sketch for NodeMCU 1.0 / HW-625 (ESP8266) that:
 - Only measures when `/api` is requested (5 pings, median); requests within 1 s share one measurement
 - `GET /api` returns `{ "d": <distance_cm> }`, or HTTP 503 `{ "d": null, "error": "no echo" }`
 - `GET /` serves a small HTML page that loads `docs/tank.js` from GitHub Pages; if that fails it shows the raw distance every 3 s
-- Wi-Fi credentials live in git-ignored `secrets.h`
+- `GET /update` is a password-protected page for uploading new firmware over Wi-Fi
+- Wi-Fi credentials and the update page login live in git-ignored `secrets.h`
 
 ### Display (`docs/tank.js`)
 Plain JavaScript, no build step, served by GitHub Pages from `main` `/docs`

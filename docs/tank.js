@@ -17,6 +17,8 @@
   if (window.tankApp) return;
   window.tankApp = true;
 
+  const SCRIPT = document.currentScript; // read now: it is only set while this file first runs
+
   const CONFIG = {
     api: '/api',
     pollMs: 3000,
@@ -305,6 +307,18 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   <text class="t lbl-red" x="208" y="${yRed + 11}">${pctText(redPct())}</text>
   <text class="level-tag num" id="levelTag" x="135" y="380" text-anchor="middle"></text>
 </svg>`;
+  }
+
+  // docs/icon.png sits next to this file, so it comes from GitHub Pages rather than the NodeMCU
+  function addIcons() {
+    if (!SCRIPT) return;
+    const href = new URL('icon.png', SCRIPT.src).href;
+    ['icon', 'apple-touch-icon'].forEach(rel => {
+      const link = document.createElement('link');
+      link.rel = rel;
+      link.href = href;
+      document.head.appendChild(link);
+    });
   }
 
   function buildPage() {
@@ -854,6 +868,7 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   function start() {
     pruneOldDays();
     loadSettings();
+    addIcons();
     buildPage();
     applyTheme();
     bindHistory();

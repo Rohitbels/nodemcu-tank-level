@@ -1,10 +1,13 @@
 #include "ESP8266WiFi.h"
 #include "ESP8266WebServer.h"
 #include "ESP8266HTTPUpdateServer.h"
+#include "ESP8266mDNS.h"
 #include "secrets.h" // Wi-Fi and update page logins; copy secrets.example.h to secrets.h
 
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater; // Firmware upload page at /update
+
+#define MDNS_NAME "tank" // Reachable at http://tank.local on the same Wi-Fi
 
 const int trigPin = 12; // D6 on NodeMCU
 const int echoPin = 14; // D5 on NodeMCU
@@ -101,12 +104,22 @@ void setup()
     httpUpdater.setup(&server, "/update", OTA_USER, OTA_PASSWORD); // Upload new firmware over Wi-Fi
     server.begin();                 // Start the server
     Serial.println("Server listening");
+
+    if (MDNS.begin(MDNS_NAME))
+    {
+        MDNS.addService("http", "tcp", 80);
+    }
+    else
+    {
+        Serial.println("mDNS failed to start");
+    }
 }
 
 void loop()
 {
     // Nothing is measured here: the sensor is only pinged when /api is requested
     server.handleClient(); // Handling of incoming requests
+    MDNS.update();         // Answers tank.local lookups
 }
 
 // Single ping. Returns echo time in microseconds, or 0 if no echo arrived.

@@ -91,9 +91,12 @@
       localStorage.removeItem('tank.settings');
       location.reload();
     };
-    panel.append(reset, clear, forget);
+    const hide = document.createElement('button');
+    hide.textContent = 'Hide panel';
+    hide.onclick = () => panel.remove();
+    panel.append(reset, clear, forget, hide);
     const room = document.createElement('style');
-    room.textContent = 'body { padding-bottom: 150px !important; }'; // keep the panel off the last controls
+    room.textContent = 'body[data-tab="History"], body[data-tab="Settings"] { padding-bottom: 170px !important; }'; // keep the panel off the last controls
     document.head.append(room);
     document.documentElement.append(panel);
   });

@@ -126,8 +126,8 @@ for (const [w,h] of [[320,568],[360,740],[390,844]]) {
   await ev(`document.getElementById('tabToday').click();window.scrollTo(0,0)`); await sleep(150);
   const fold=await ev(`document.getElementById('levelBig').getBoundingClientRect().bottom`);
   check(`${w}px: level number above the fold`, fold<h, Math.round(fold)+' of '+h);
-  const scale=await ev(`document.querySelector('.gauge svg').getBoundingClientRect().height/420`);
-  check(`${w}px: gauge text readable`, scale>=.8, scale.toFixed(2));
+  const scale=await ev(`(()=>{const r=document.querySelector('.gauge svg').getBoundingClientRect();return Math.min(r.width/300,r.height/420)})()`);
+  check(`${w}px: gauge labels at least 8px`, scale*13>=8, (scale*13).toFixed(1)+'px');
 }
 await ev(`document.getElementById('tabHistory').click()`);
 check('manual copy box is 16px (no iOS zoom)', await ev(`getComputedStyle(document.getElementById('copyBox')).fontSize==='16px'`));
@@ -246,6 +246,24 @@ await clickSel('#tabSettings'); await clickSel('#tankForm button'); await sleep(
 check('saving 70 clears warning', !(await notice()));
 await nav('http://tank.test:8765/',false);
 check('still clear after reload', !(await notice()));
+// Today fits the screen unless it is shorter than the minimum
+for (const [w,h,fits] of [[360,600,true],[375,667,true],[360,740,true],[412,760,true],[412,915,true],[390,844,true],[430,932,true],[320,568,false],[360,500,false]]) {
+  await send('Emulation.setDeviceMetricsOverride',{width:w,height:h,deviceScaleFactor:2,mobile:true});
+  await ev(`tabToday.click()`); await sleep(250);
+  const noScroll=await ev(`document.documentElement.scrollHeight<=innerHeight`);
+  check(`${w}x${h}: Today ${fits?'has no scroll':'scrolls'}`, noScroll===fits, await ev(`document.documentElement.scrollHeight+' of '+innerHeight`));
+  if (fits) {
+    check(`${w}x${h}: tank card fills to the bottom`, await ev(`Math.abs(innerHeight-16-document.querySelector('.gauge').getBoundingClientRect().bottom)<=1`));
+    const tankCard=await ev(`(()=>{const g=document.querySelector('.gauge').getBoundingClientRect(),c=document.getElementById('levelBig').closest('.card').getBoundingClientRect();return Math.round(c.height)+' + '+Math.round(g.height)})()`);
+    console.log('   cards: '+tankCard);
+  }
+  check(`${w}x${h}: indicator clear of the tank`, await ev(`(()=>{const f=document.querySelector('.fab').getBoundingClientRect(),t=document.querySelector('.tank-wall').getBoundingClientRect();return t.right<f.left||t.bottom<f.top})()`));
+}
+await send('Emulation.setDeviceMetricsOverride',{width:1280,height:800,deviceScaleFactor:1,mobile:false}); await sleep(250);
+check('desktop Today has no scroll', await ev(`document.documentElement.scrollHeight<=innerHeight`), await ev(`document.documentElement.scrollHeight+' of '+innerHeight`));
+await ev(`tabHistory.click()`); await sleep(200);
+check('History keeps room for the indicator', await ev(`getComputedStyle(document.body).paddingBottom==='96px'`));
+await send('Emulation.clearDeviceMetricsOverride');
 // localStorage blocked must not stop the page
 await send('Page.addScriptToEvaluateOnNewDocument',{source:`if(location.search.includes('lsthrow'))Object.defineProperty(window,'localStorage',{get(){throw new Error('blocked')}});`});
 await nav('http://tank.test:8765/?noseed&lsthrow',false);await sleep(2500);

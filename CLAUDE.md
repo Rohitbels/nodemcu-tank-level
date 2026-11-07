@@ -37,6 +37,7 @@ Plain JavaScript, no build step, served by GitHub Pages from `main` `/docs`
 - Water available tile: litres for a round straight-sided tank when a diameter is set, otherwise cm of water
 - Mobile first: design and check at phone widths before desktop
 - Floating indicator, bottom right on every view: green OK, red OFF (stop the motor), grey -- when there is no reading
+- Today fits the screen without scrolling: the top card keeps its height, the tank card takes the rest, and it only scrolls once the tank card reaches its minimum height (`.cols` rows)
 - Sticky top bar: title with a live dot (green live, red offline or no echo), then tabs for Today, History (chart icon) and Settings (gear icon)
 - History tab: per-day level chart (one median point per minute, shaded gaps), daily high/low/readings, and Copy Data (CSV of every stored day, one row per minute, with fill % and raw distance)
 - Copy Data can't rely on `navigator.clipboard`: the page is plain http, so it uses `execCommand('copy')`, then a manual-copy box

@@ -165,10 +165,11 @@
 :root[data-theme="dark"] { ${DARK} }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; display: block; min-height: 0; text-align: left; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font);
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+body { margin: 0; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; text-align: left; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+body[data-tab="History"], body[data-tab="Settings"] { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); } /* room to scroll clear of the floating indicator */
 button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-main { max-width: 860px; margin: 0 auto; display: grid; gap: 14px; }
+main { flex: 1; display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 860px; margin: 0 auto; }
 .num { font-variant-numeric: tabular-nums; }
 header { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: max(8px, env(safe-area-inset-top, 0px)) 0 8px; background: var(--bg); }
@@ -187,17 +188,21 @@ body[data-state="red"] { --state: var(--red); }
 body[data-state="off"] { --state: var(--off); }
 body[data-state="red"] .fab { animation: tank-pulse 1s ease-out infinite; }
 @keyframes tank-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 60%, transparent); } to { box-shadow: 0 0 0 16px transparent; } }
-.cols { display: grid; gap: 14px; }
+/* Today fills the screen: the top card keeps its height and the tank card takes the rest, down to a 290px minimum that keeps
+   the gauge labels readable. Only below that does the page scroll. */
+.cols { flex: 1 1 auto; display: grid; grid-template-rows: auto minmax(290px,1fr); gap: 14px; }
 @media (min-width: 680px) {
-  .cols { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
+  .cols { grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-rows: minmax(290px,1fr); align-items: start; max-height: 760px; }
   h1 { font-size: 22px; }
-  .gauge { order: -1; }
-  .gauge svg { max-height: none; }
+  .gauge { order: -1; align-self: stretch; }
   .hist dl div { padding: 10px 12px; }
   .hist dd { font-size: 18px; }
 }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
-.gauge svg { display: block; width: 100%; max-width: 360px; height: auto; max-height: max(340px, 60vh); margin: 0 auto; }
+/* Taken out of the flow so the drawing scales to its card instead of setting the card's height */
+.gauge { position: relative; }
+.gauge svg { position: absolute; top: 14px; left: 14px; width: calc(100% - 28px); height: calc(100% - 28px); }
+.gauge .t, .gauge .tl { font-size: 13px; }
 .t { fill: var(--muted); font: 11px var(--mono); }
 .tl { font: 600 11.5px var(--font); }
 .tank-bg { fill: var(--tank); }
@@ -211,7 +216,7 @@ body[data-state="red"] .fab { animation: tank-pulse 1s ease-out infinite; }
 .water { fill: var(--water); }
 .wave { fill: var(--water-top); animation: tank-wave 3s linear infinite; }
 @keyframes tank-wave { to { transform: translateX(-65px); } }
-.level-tag { fill: var(--fg); font: 700 14px var(--font); }
+.level-tag { fill: var(--fg); font: 700 17px var(--font); }
 .big { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .big strong { font-size: 44px; line-height: 1; font-weight: 700; }
 .big span { color: var(--muted); }
@@ -603,6 +608,7 @@ dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
 
   function showTab(name) {
     currentTab = name;
+    document.body.dataset.tab = name;
     TABS.forEach(tab => {
       const on = tab === name;
       $('panel' + tab).hidden = !on;
